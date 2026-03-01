@@ -1,0 +1,149 @@
+﻿@model DMP_06.Models.PredictPageVm
+
+<div style="max-width: 900px; margin: 24px auto;">
+    <h2>FIFA Model Demo</h2>
+
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px;">
+        <input id="age" placeholder="age" type="number" step="1" value="24" />
+        <input id="heightCm" placeholder="height_cm" type="number" step="1" value="180" />
+        <input id="weightKg" placeholder="weight_kg" type="number" step="1" value="75" />
+        <input id="overall" placeholder="overall" type="number" step="1" value="82" />
+        <input id="pace" placeholder="pace" type="number" step="1" value="85" />
+        <input id="shooting" placeholder="shooting" type="number" step="1" value="78" />
+        <input id="passing" placeholder="passing" type="number" step="1" value="80" />
+        <input id="dribbling" placeholder="dribbling" type="number" step="1" value="83" />
+        <input id="defending" placeholder="defending" type="number" step="1" value="60" />
+        <input id="physic" placeholder="physic" type="number" step="1" value="70" />
+    </div>
+
+    <button id="btnPredict" style="margin-top: 12px;">Predict</button>
+    <span id="status" style="margin-left:12px;"></span>
+
+    <div style="margin-top: 16px;">
+        <div><b>Predicted value (EUR):</b> <span id="outValue">–</span></div>
+        <div><b>Predicted position:</b> <span id="outPos">–</span></div>
+    </div>
+
+    <hr style="margin: 20px 0;" />
+
+    <h3>Market Value: True vs Predicted</h3>
+    <div id="regTitle" style="font-weight:600; margin-bottom:8px;"></div>
+    <canvas id="regScatter" height="140"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+    function num(id) {
+        const el = document.getElementById(id);
+        const n = Number(el.value);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    async function predict() {
+        const status = document.getElementById("status");
+        status.textContent = "Loading...";
+
+        const payload = {
+            age: num("age"),
+            heightCm: num("heightCm"),
+            weightKg: num("weightKg"),
+            overall: num("overall"),
+            pace: num("pace"),
+            shooting: num("shooting"),
+            passing: num("passing"),
+            dribbling: num("dribbling"),
+            defending: num("defending"),
+            physic: num("physic")
+        };
+
+        try {
+            const r = await fetch("/predict/all", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (r.status === 503) {
+                status.textContent = "Models are loading...";
+                return;
+            }
+
+            if (!r.ok) {
+                status.textContent = "Server error";
+                return;
+            }
+
+            const data = await r.json();
+            document.getElementById("outValue").innerText =
+                Math.round(data.predictedValueEur).toLocaleString();
+            document.getElementById("outPos").innerText = data.predictedPosition;
+
+            status.textContent = "OK";
+        } catch (e) {
+            status.textContent = "Error";
+            console.error(e);
+        }
+    }
+
+    document.getElementById("btnPredict").addEventListener("click", predict);
+
+    let regChart;
+
+    async function loadRegScatter() {
+        const r = await fetch("/charts/reg-true-vs-pred");
+
+            if (r.status === 503) {
+        status.textContent = "Models are loading...";
+        return;
+    }
+
+    if (!r.ok) {
+        status.textContent = "Server error";
+        return;
+    }
+
+        const data = await r.json();
+
+        const mae = Math.round(data.mae).toLocaleString();
+        const r2 = Number(data.r2).toFixed(3);
+        document.getElementById("regTitle").innerText = `MAE=${mae} EUR, R²=${r2}`;
+
+        const ctx = document.getElementById("regScatter").getContext("2d");
+        if (regChart) regChart.destroy();
+
+        regChart = new Chart(ctx, {
+            type: "scatter",
+            data: {
+                datasets: [
+                    {
+                        label: "True vs Predicted",
+                        data: data.points,
+                        pointRadius: 3,
+                        pointBackgroundColor: "rgba(54, 162, 235, 0.35)"
+                    },
+                    {
+                        label: "y = x",
+                        type: "line",
+                        data: data.line,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        tension: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    x: { title: { display: true, text: "True value_eur" } },
+                    y: { title: { display: true, text: "Predicted value_eur" } }
+                }
+            }
+        });
+    }
+
+    loadRegScatter();
+</script>

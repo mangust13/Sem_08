@@ -1,1 +1,19 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.rsuser
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Backups
 *.bak
